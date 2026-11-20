@@ -1,0 +1,284 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Account {
+    int account_no;
+    char name[50];
+    float balance;
+} Account;
+
+typedef struct Transaction {
+    int transaction_id;
+    int account_no;
+    char type[20];
+    float amount;
+    float balance_after;
+    struct Transaction *next;
+} Transaction;
+
+Transaction *head = NULL;
+int transaction_count = 0;
+
+// Find an account using account number
+int findAccount(Account accounts[], int n, int acc_no) {
+    for (int i = 0; i < n; i++) {
+        if (accounts[i].account_no == acc_no)
+            return i;
+    }
+    return -1;
+}
+
+// Add transaction to linked list
+void addTransaction(int acc_no, char type[], float amount,
+                    float balance) {
+
+    Transaction *newNode = malloc(sizeof(Transaction));
+
+    if (newNode == NULL) {
+        printf("Memory allocation failed!\n");
+        return;
+    }
+
+    newNode->transaction_id = ++transaction_count;
+    newNode->account_no = acc_no;
+    strcpy(newNode->type, type);
+    newNode->amount = amount;
+    newNode->balance_after = balance;
+    newNode->next = NULL;
+
+    if (head == NULL) {
+        head = newNode;
+    }
+    else {
+        Transaction *temp = head;
+
+        while (temp->next != NULL)
+            temp = temp->next;
+
+        temp->next = newNode;
+    }
+}
+
+// Deposit
+void deposit(Account accounts[], int n) {
+    int acc_no;
+    float amount;
+
+    printf("Enter account number: ");
+    scanf("%d", &acc_no);
+
+    int index = findAccount(accounts, n, acc_no);
+
+    if (index == -1) {
+        printf("Account not found!\n");
+        return;
+    }
+
+    printf("Enter deposit amount: ");
+    scanf("%f", &amount);
+
+    if (amount <= 0) {
+        printf("Invalid amount!\n");
+        return;
+    }
+
+    accounts[index].balance += amount;
+
+    addTransaction(acc_no, "DEPOSIT", amount,
+                   accounts[index].balance);
+
+    printf("Deposit successful!\n");
+}
+
+// Withdraw
+void withdraw(Account accounts[], int n) {
+    int acc_no;
+    float amount;
+
+    printf("Enter account number: ");
+    scanf("%d", &acc_no);
+
+    int index = findAccount(accounts, n, acc_no);
+
+    if (index == -1) {
+        printf("Account not found!\n");
+        return;
+    }
+
+    printf("Enter withdrawal amount: ");
+    scanf("%f", &amount);
+
+    if (amount <= 0 || amount > accounts[index].balance) {
+        printf("Invalid amount or insufficient balance!\n");
+        return;
+    }
+
+    accounts[index].balance -= amount;
+
+    addTransaction(acc_no, "WITHDRAW", amount,
+                   accounts[index].balance);
+
+    printf("Withdrawal successful!\n");
+}
+
+// Transfer
+void transfer(Account accounts[], int n) {
+    int sender, receiver;
+    float amount;
+
+    printf("Enter sender account number: ");
+    scanf("%d", &sender);
+
+    printf("Enter receiver account number: ");
+    scanf("%d", &receiver);
+
+    int s = findAccount(accounts, n, sender);
+    int r = findAccount(accounts, n, receiver);
+
+    if (s == -1 || r == -1) {
+        printf("One or both accounts not found!\n");
+        return;
+    }
+
+    if (s == r) {
+        printf("Cannot transfer to the same account!\n");
+        return;
+    }
+
+    printf("Enter transfer amount: ");
+    scanf("%f", &amount);
+
+    if (amount <= 0 || amount > accounts[s].balance) {
+        printf("Invalid amount or insufficient balance!\n");
+        return;
+    }
+
+    // Update balances
+    accounts[s].balance -= amount;
+    accounts[r].balance += amount;
+
+    // Record both sides of transfer
+    addTransaction(sender, "TRANSFER OUT", amount,
+                   accounts[s].balance);
+
+    addTransaction(receiver, "TRANSFER IN", amount,
+                   accounts[r].balance);
+
+    printf("Transfer successful!\n");
+}
+
+
+void transactionHistory(int acc_no) {
+
+    Transaction *temp = head;
+
+    int count = 0;
+
+    
+    while (temp != NULL) {
+        if (temp->account_no == acc_no)
+            count++;
+
+        temp = temp->next;
+    }
+
+    if (count == 0) {
+        printf("No transaction history found!\n");
+        return;
+    }
+
+    int skip = (count > 10) ? count - 10 : 0;
+
+    temp = head;
+
+    printf("\n========== TRANSACTION HISTORY ==========\n");
+
+    int position = 0;
+
+    while (temp != NULL) {
+
+        if (temp->account_no == acc_no) {
+
+            if (position >= skip) {
+                printf("\nTransaction ID: %d", temp->transaction_id);
+                printf("\nType: %s", temp->type);
+                printf("\nAmount: %.2f", temp->amount);
+                printf("\nBalance after: %.2f\n",
+                       temp->balance_after);
+            }
+
+            position++;
+        }
+
+        temp = temp->next;
+    }
+}
+
+
+void freeTransactions() {
+    Transaction *temp;
+
+    while (head != NULL) {
+        temp = head;
+        head = head->next;
+        free(temp);
+    }
+}
+
+int main() {
+
+    Account accounts[100] = {
+        {1001, "Alice", 5000},
+        {1002, "Bob", 3000},
+        {1003, "Charlie", 7000}
+    };
+
+    int n = 3;
+    int choice, acc_no;
+
+    do {
+        printf("\n========== BANKING SYSTEM ==========\n");
+        printf("1. Deposit\n");
+        printf("2. Withdraw\n");
+        printf("3. Transfer\n");
+        printf("4. Transaction History\n");
+        printf("5. Exit\n");
+
+        printf("Enter choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+
+            case 1:
+                deposit(accounts, n);
+                break;
+
+            case 2:
+                withdraw(accounts, n);
+                break;
+
+            case 3:
+                transfer(accounts, n);
+                break;
+
+            case 4:
+                printf("Enter account number: ");
+                scanf("%d", &acc_no);
+                transactionHistory(acc_no);
+                break;
+
+            case 5:
+                printf("Exiting...\n");
+                break;
+
+            default:
+                printf("Invalid choice!\n");
+        }
+
+    } while (choice != 5);
+
+    freeTransactions();
+
+    return 0;
+}

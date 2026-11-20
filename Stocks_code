@@ -1,0 +1,407 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_STOCKS 50
+#define MAX_HISTORY 100
+
+typedef struct {
+    char symbol[10];
+    char company[50];
+    float prices[MAX_HISTORY];
+    int price_count;
+} Stock;
+
+typedef struct {
+    char symbol[10];
+    int quantity;
+    float average_price;
+} Holding;
+
+typedef struct {
+    char symbol[10];
+    char type[10];
+    int quantity;
+    float price;
+    float total;
+} Transaction;
+
+Stock stocks[MAX_STOCKS];
+Holding portfolio[MAX_STOCKS];
+Transaction transactions[500];
+
+int stock_count = 0;
+int holding_count = 0;
+int transaction_count = 0;
+
+// Find stock
+int findStock(char symbol[]) {
+    for (int i = 0; i < stock_count; i++) {
+        if (strcmp(stocks[i].symbol, symbol) == 0)
+            return i;
+    }
+    return -1;
+}
+
+// Find holding
+int findHolding(char symbol[]) {
+    for (int i = 0; i < holding_count; i++) {
+        if (strcmp(portfolio[i].symbol, symbol) == 0)
+            return i;
+    }
+    return -1;
+}
+
+// Add stock
+void addStock() {
+    if (stock_count >= MAX_STOCKS) {
+        printf("Stock limit reached!\n");
+        return;
+    }
+
+    char symbol[10];
+
+    printf("Enter stock symbol: ");
+    scanf("%9s", symbol);
+
+    if (findStock(symbol) != -1) {
+        printf("Stock already exists!\n");
+        return;
+    }
+
+    Stock *s = &stocks[stock_count];
+
+    strcpy(s->symbol, symbol);
+
+    printf("Enter company name (single word): ");
+    scanf("%49s", s->company);
+
+    printf("Enter current stock price: ");
+    scanf("%f", &s->prices[0]);
+
+    if (s->prices[0] <= 0) {
+        printf("Invalid price!\n");
+        return;
+    }
+
+    s->price_count = 1;
+
+    stock_count++;
+
+    printf("Stock added successfully!\n");
+}
+
+// Record transaction
+void recordTransaction(char symbol[], char type[],
+                       int quantity, float price) {
+
+    if (transaction_count >= 500) {
+        printf("Transaction history full!\n");
+        return;
+    }
+
+    Transaction *t = &transactions[transaction_count++];
+
+    strcpy(t->symbol, symbol);
+    strcpy(t->type, type);
+
+    t->quantity = quantity;
+    t->price = price;
+    t->total = quantity * price;
+}
+
+// Buy stock
+void buyStock() {
+    char symbol[10];
+    int quantity;
+
+    printf("Enter stock symbol: ");
+    scanf("%9s", symbol);
+
+    int s = findStock(symbol);
+
+    if (s == -1) {
+        printf("Stock not found!\n");
+        return;
+    }
+
+    printf("Enter quantity: ");
+    scanf("%d", &quantity);
+
+    if (quantity <= 0) {
+        printf("Invalid quantity!\n");
+        return;
+    }
+
+    int h = findHolding(symbol);
+
+    if (h == -1) {
+        if (holding_count >= MAX_STOCKS) {
+            printf("Portfolio full!\n");
+            return;
+        }
+
+        h = holding_count++;
+
+        strcpy(portfolio[h].symbol, symbol);
+        portfolio[h].quantity = 0;
+        portfolio[h].average_price = 0;
+    }
+
+    Holding *hold = &portfolio[h];
+
+    float old_value =
+        hold->quantity * hold->average_price;
+
+    float new_value =
+        quantity * stocks[s].prices[stocks[s].price_count - 1];
+
+    hold->quantity += quantity;
+
+    hold->average_price =
+        (old_value + new_value) / hold->quantity;
+
+    recordTransaction(
+        symbol, "BUY", quantity,
+        stocks[s].prices[stocks[s].price_count - 1]
+    );
+
+    printf("Stock purchased successfully!\n");
+}
+
+// Sell stock
+void sellStock() {
+    char symbol[10];
+    int quantity;
+
+    printf("Enter stock symbol: ");
+    scanf("%9s", symbol);
+
+    int h = findHolding(symbol);
+    int s = findStock(symbol);
+
+    if (h == -1 || s == -1) {
+        printf("Stock not found in portfolio!\n");
+        return;
+    }
+
+    printf("Enter quantity to sell: ");
+    scanf("%d", &quantity);
+
+    if (quantity <= 0 || quantity > portfolio[h].quantity) {
+        printf("Invalid quantity!\n");
+        return;
+    }
+
+    float price =
+        stocks[s].prices[stocks[s].price_count - 1];
+
+    portfolio[h].quantity -= quantity;
+
+    if (portfolio[h].quantity == 0) {
+        portfolio[h].average_price = 0;
+    }
+
+    recordTransaction(symbol, "SELL", quantity, price);
+
+    printf("Sale successful!\n");
+    printf("Sale value: %.2f\n", quantity * price);
+}
+
+// Update stock price
+void updatePrice() {
+    char symbol[10];
+    float price;
+
+    printf("Enter stock symbol: ");
+    scanf("%9s", symbol);
+
+    int s = findStock(symbol);
+
+    if (s == -1) {
+        printf("Stock not found!\n");
+        return;
+    }
+
+    if (stocks[s].price_count >= MAX_HISTORY) {
+        printf("Price history full!\n");
+        return;
+    }
+
+    printf("Enter new stock price: ");
+    scanf("%f", &price);
+
+    if (price <= 0) {
+        printf("Invalid price!\n");
+        return;
+    }
+
+    stocks[s].prices[stocks[s].price_count++] = price;
+
+    printf("Price updated!\n");
+}
+
+// Display portfolio
+void displayPortfolio() {
+    float total_value = 0;
+    float total_cost = 0;
+
+    printf("\n========== PORTFOLIO ==========\n");
+
+    for (int i = 0; i < holding_count; i++) {
+        Holding h = portfolio[i];
+
+        int s = findStock(h.symbol);
+
+        if (s == -1 || h.quantity == 0)
+            continue;
+
+        float current_price =
+            stocks[s].prices[stocks[s].price_count - 1];
+
+        float value = h.quantity * current_price;
+        float cost = h.quantity * h.average_price;
+
+        float profit = value - cost;
+
+        total_value += value;
+        total_cost += cost;
+
+        printf("\nStock: %s", h.symbol);
+        printf("\nQuantity: %d", h.quantity);
+        printf("\nAverage purchase price: %.2f", h.average_price);
+        printf("\nCurrent price: %.2f", current_price);
+        printf("\nProfit/Loss: %.2f\n", profit);
+    }
+
+    printf("\nTotal invested value: %.2f", total_cost);
+    printf("\nCurrent portfolio value: %.2f", total_value);
+    printf("\nOverall profit/loss: %.2f\n",
+           total_value - total_cost);
+}
+
+// Calculate moving average
+void movingAverage() {
+    char symbol[10];
+    int period;
+
+    printf("Enter stock symbol: ");
+    scanf("%9s", symbol);
+
+    int s = findStock(symbol);
+
+    if (s == -1) {
+        printf("Stock not found!\n");
+        return;
+    }
+
+    printf("Enter moving average period: ");
+    scanf("%d", &period);
+
+    if (period <= 0 || period > stocks[s].price_count) {
+        printf("Invalid period!\n");
+        return;
+    }
+
+    float sum = 0;
+
+    for (int i = stocks[s].price_count - period;
+         i < stocks[s].price_count; i++) {
+
+        sum += stocks[s].prices[i];
+    }
+
+    printf("Moving average: %.2f\n", sum / period);
+}
+
+// Transaction history
+void transactionHistory() {
+    printf("\n========== TRANSACTIONS ==========\n");
+
+    if (transaction_count == 0) {
+        printf("No transactions yet!\n");
+        return;
+    }
+
+    for (int i = 0; i < transaction_count; i++) {
+        Transaction t = transactions[i];
+
+        printf("\nStock: %s", t.symbol);
+        printf("\nType: %s", t.type);
+        printf("\nQuantity: %d", t.quantity);
+        printf("\nPrice: %.2f", t.price);
+        printf("\nTotal: %.2f\n", t.total);
+    }
+}
+
+// Best performing stock in portfolio
+void bestStock() {
+    int best = -1;
+    float highest = -1e30f;
+
+    for (int i = 0; i < holding_count; i++) {
+        int s = findStock(portfolio[i].symbol);
+
+        if (s == -1 || portfolio[i].quantity == 0)
+            continue;
+
+        float current =
+            stocks[s].prices[stocks[s].price_count - 1];
+
+        float profit =
+            (current - portfolio[i].average_price)
+            * portfolio[i].quantity;
+
+        if (profit > highest) {
+            highest = profit;
+            best = i;
+        }
+    }
+
+    if (best == -1) {
+        printf("No active holdings!\n");
+        return;
+    }
+
+    printf("Best performing stock: %s\n",
+           portfolio[best].symbol);
+
+    printf("Profit/Loss: %.2f\n", highest);
+}
+
+int main() {
+    int choice;
+
+    do {
+        printf("\n========== STOCK MARKET SIMULATOR ==========\n");
+
+        printf("1. Add Stock\n");
+        printf("2. Buy Stock\n");
+        printf("3. Sell Stock\n");
+        printf("4. Update Stock Price\n");
+        printf("5. Display Portfolio\n");
+        printf("6. Calculate Moving Average\n");
+        printf("7. Transaction History\n");
+        printf("8. Best Performing Stock\n");
+        printf("9. Exit\n");
+
+        printf("\nEnter choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: addStock(); break;
+            case 2: buyStock(); break;
+            case 3: sellStock(); break;
+            case 4: updatePrice(); break;
+            case 5: displayPortfolio(); break;
+            case 6: movingAverage(); break;
+            case 7: transactionHistory(); break;
+            case 8: bestStock(); break;
+            case 9: printf("Exiting simulator...\n"); break;
+            default: printf("Invalid choice!\n");
+        }
+
+    } while (choice != 9);
+
+    return 0;
+}
